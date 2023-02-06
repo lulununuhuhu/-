@@ -14,12 +14,14 @@ import com.lucheng.service.DishFlavorService;
 import com.lucheng.service.DishService;
 import com.lucheng.mapper.DishMapper;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ObjectUtils;
 
 import javax.annotation.Resource;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -31,15 +33,19 @@ import java.util.stream.Collectors;
 
 public class DishServiceImpl extends ServiceImpl<DishMapper, Dish>
 implements DishService{
+
+    @Resource
+    private RedisTemplate redisTemplate;
     @Resource
     private DishFlavorService dishFlavorService;
-
     @Resource
     private CategoryService categoryService;
 
     @Override
     @Transactional //涉及到两张表，需要添加事务
     public R<String> addDish(DishDto dishDto) {
+        //在redis中删除该菜品对应redis的信息
+        redisTemplate.delete("dish"+dishDto.getCategoryId());
         //在Dish表中增加一条记录
         save(dishDto);
 
@@ -96,9 +102,10 @@ implements DishService{
     @Override
     @Transactional
     public R<String> updateDish(DishDto dishDto) {
+        //先删除对应菜品分类的redis信息
+        redisTemplate.delete("dish"+dishDto.getCategoryId());
         //更新菜品信息
         updateById(dishDto);
-
         //更新对应的口味信息
         List<DishFlavor> newFlavorList = dishDto.getFlavors();
         newFlavorList = newFlavorList.stream().map(newFlavor->{
@@ -118,6 +125,14 @@ implements DishService{
     public R<List<DishDto>> queryDishInfo(DishDto dish) {
         Long dishId = dish.getId();//获取菜品id
         Long categoryId = dish.getCategoryId();//获取菜品分类id
+        List<DishDto> dishDtoList = null;
+        //先查询redis中是否有该分类的数据
+        dishDtoList = (List<DishDto>) redisTemplate.opsForValue().get("dish" + categoryId.toString());
+
+        //如果有，直接返回
+        if(!ObjectUtils.isEmpty(dishDtoList)){
+            return R.success(dishDtoList);
+        }
         LambdaQueryWrapper<Dish> queryWrapper = new LambdaQueryWrapper<>();
         //根据菜品id和菜品分类id进行查询条件设置
         queryWrapper.eq(!ObjectUtils.isEmpty(dishId),Dish::getId,dishId);
@@ -129,13 +144,15 @@ implements DishService{
 
         List<Dish> dishList = list(queryWrapper);
 
-        List<DishDto> dishDtoList = dishList.stream().map(dish1 -> {
+        dishDtoList = dishList.stream().map(dish1 -> {
             DishDto dishDto = new DishDto();
             BeanUtils.copyProperties(dish1, dishDto);
             List<DishFlavor> dishFlavorList = dishFlavorService.list(new LambdaQueryWrapper<DishFlavor>().eq(DishFlavor::getDishId, dish1.getId()));
             dishDto.setFlavors(dishFlavorList);
             return dishDto;
         }).collect(Collectors.toList());
+//        写入redis中,有效期为60分钟
+        redisTemplate.opsForValue().set("dish"+ categoryId,dishDtoList,60L, TimeUnit.MINUTES);
         return R.success(dishDtoList);
     }
 }

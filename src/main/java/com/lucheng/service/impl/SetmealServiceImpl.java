@@ -16,12 +16,14 @@ import com.lucheng.service.SetmealService;
 import com.lucheng.mapper.SetmealMapper;
 import java.lang.String;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 import javax.annotation.Resource;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -33,6 +35,8 @@ import java.util.stream.Collectors;
 public class SetmealServiceImpl extends ServiceImpl<SetmealMapper, Setmeal>
 implements SetmealService{
 
+    @Resource
+    private RedisTemplate redisTemplate;
     @Resource
     private CategoryService categoryService;
 
@@ -105,8 +109,14 @@ implements SetmealService{
     public R<List<SetmealDto>> querySetmealInfo(SetmealDto setmealDto) {
         Long setmealDtoId = setmealDto.getId();//获取套餐id
         Long categoryId = setmealDto.getCategoryId();//获取菜品分类id
+        List<SetmealDto> setmealDtoList = null;
+        //查询redis中是否有对应信息
+        setmealDtoList  = (List<SetmealDto>) redisTemplate.opsForValue().get("dish" + categoryId);
+        if(!ObjectUtils.isEmpty(setmealDtoList)){
+            return R.success(setmealDtoList);
+        }
         LambdaQueryWrapper<Setmeal> queryWrapper = new LambdaQueryWrapper<>();
-        //根据套擦id和菜品分类id进行查询条件设置
+        //根据套餐id和菜品分类id进行查询条件设置
         queryWrapper.eq(!ObjectUtils.isEmpty(setmealDtoId),Setmeal::getId,setmealDtoId);
         queryWrapper.eq(!ObjectUtils.isEmpty(categoryId),Setmeal::getCategoryId,categoryId);
         //设置status为起售状态
@@ -118,7 +128,7 @@ implements SetmealService{
         List<Setmeal> setmealList = list(queryWrapper);
 
         //获取所有套餐的具体菜品信息
-        List<SetmealDto> setmealDtoList = setmealList.stream().map(setmeal -> {
+        setmealDtoList = setmealList.stream().map(setmeal -> {
             SetmealDto setmealDto1 = new SetmealDto();
             BeanUtils.copyProperties(setmeal, setmealDto1);
             Long setmealId = setmeal.getId();
@@ -128,6 +138,9 @@ implements SetmealService{
             setmealDto1.setSetmealDishes(setmealDishes);
             return setmealDto1;
         }).collect(Collectors.toList());
+
+        //存入redis
+        redisTemplate.opsForValue().set("dish"+categoryId,setmealDtoList,60L, TimeUnit.MINUTES);
         return R.success(setmealDtoList);
     }
 
