@@ -16,6 +16,8 @@ import com.lucheng.service.SetmealService;
 import com.lucheng.mapper.SetmealMapper;
 import java.lang.String;
 import org.springframework.beans.BeanUtils;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -89,6 +91,7 @@ implements SetmealService{
 
     @Override
     @Transactional
+    @CacheEvict(value = "setmealCache",allEntries = true) //执行该方法后，将所有的value的值那一类的缓存数据清除
     public R<String> deleteSetmealWithDish(List<Long> ids) {
         //先判断待删除套餐是否处于在售状态，如处于在售状态则抛出异常
         LambdaQueryWrapper<Setmeal> queryWrapper = new LambdaQueryWrapper<>();
@@ -106,15 +109,16 @@ implements SetmealService{
     }
 
     @Override
+    @Cacheable(value = "setmealCache",key = "#setmealDto.categoryId+'_'+#setmealDto.status")
     public R<List<SetmealDto>> querySetmealInfo(SetmealDto setmealDto) {
         Long setmealDtoId = setmealDto.getId();//获取套餐id
         Long categoryId = setmealDto.getCategoryId();//获取菜品分类id
         List<SetmealDto> setmealDtoList = null;
         //查询redis中是否有对应信息
-        setmealDtoList  = (List<SetmealDto>) redisTemplate.opsForValue().get("dish" + categoryId);
-        if(!ObjectUtils.isEmpty(setmealDtoList)){
-            return R.success(setmealDtoList);
-        }
+//        setmealDtoList  = (List<SetmealDto>) redisTemplate.opsForValue().get("dish" + categoryId);
+//        if(!ObjectUtils.isEmpty(setmealDtoList)){
+//            return R.success(setmealDtoList);
+//        }
         LambdaQueryWrapper<Setmeal> queryWrapper = new LambdaQueryWrapper<>();
         //根据套餐id和菜品分类id进行查询条件设置
         queryWrapper.eq(!ObjectUtils.isEmpty(setmealDtoId),Setmeal::getId,setmealDtoId);
@@ -140,7 +144,7 @@ implements SetmealService{
         }).collect(Collectors.toList());
 
         //存入redis
-        redisTemplate.opsForValue().set("dish"+categoryId,setmealDtoList,60L, TimeUnit.MINUTES);
+//        redisTemplate.opsForValue().set("dish"+categoryId,setmealDtoList,60L, TimeUnit.MINUTES);
         return R.success(setmealDtoList);
     }
 
