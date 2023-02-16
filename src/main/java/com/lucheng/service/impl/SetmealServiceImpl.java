@@ -2,6 +2,8 @@ package com.lucheng.service.impl;
 
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lucheng.common.CustomException;
@@ -163,4 +165,14 @@ implements SetmealService{
         return R.success(dishList);
     }
 
+    @Override
+    @CacheEvict(value = "setmealCache",allEntries = true) //需要修改数据库，所以要清空缓存
+    public R<String> changeStatus(Integer status, List<Long> ids) {
+        //将ids中的每个对应的每个套餐数据的status值修改
+        LambdaUpdateWrapper<Setmeal> setmealLambdaUpdateWrapper = new LambdaUpdateWrapper<>();
+        setmealLambdaUpdateWrapper.in(!ObjectUtils.isEmpty(ids),Setmeal::getId,ids);
+        setmealLambdaUpdateWrapper.set(Setmeal::getStatus,status);
+        update(setmealLambdaUpdateWrapper);
+        return R.success("修改成功");
+    }
 }

@@ -61,4 +61,15 @@ public class SetmealController {
     public R<List<Dish>> querySetmealById(@PathVariable("id") Long id){
         return setmealService.querySetmealById(id);
     }
+
+    /**
+     * 更改套餐售卖状态
+     * @param ids
+     * @return
+     */
+    @PostMapping("/status/{status}")
+    public R<String> changeStatus(@PathVariable("status") Integer status,@RequestParam List<Long> ids){//接收集合类型参数时，一定要加@RequestParam注解
+        log.info("待修改状态套餐id是: {},修改套餐状态为: {}",ids,status);
+        return setmealService.changeStatus(status,ids);
+    }
 }

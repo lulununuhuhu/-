@@ -54,4 +54,6 @@ public interface SetmealService extends IService<Setmeal> {
      * @return
      */
     public R<List<Dish>> querySetmealById(Long id);
+
+    public R<String> changeStatus(Integer status, List<Long> ids);
 }
