@@ -49,6 +49,7 @@ implements SetmealService{
     private DishService dishService;
     @Override
     @Transactional
+    @CacheEvict(value = "setmealCache",allEntries = true)
     public R<String> addSetmealWithDish(SetmealDto setmealDto) {
         //先在套餐表添加套餐信息
         //  根据categoryId获取到套餐对应的分类名
